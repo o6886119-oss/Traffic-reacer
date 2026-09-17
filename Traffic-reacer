@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jungle Highway Car Racer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: manipulation;
+        }
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background: #2e7d32; /* Forest Green background */
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: block;
+        }
+        /* Mobile Touch Controls Overlay */
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        .btn {
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid white;
+            color: white;
+            font-size: 24px;
+            padding: 20px 40px;
+            border-radius: 50px;
+            user-select: none;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            font-weight: bold;
+        }
+        .btn:active {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        .ui-score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <div class="ui-score" id="scoreDisplay">Score: 0</div>
+        <canvas id="gameCanvas" width="400" height="650"></canvas>
+        
+        <div class="controls">
+            <div class="btn" id="leftBtn">◀</div>
+            <div class="btn" id="rightBtn">▶</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+
+        // Game Variables
+        let score = 0;
+        let isGameOver = false;
+
+        // Player Car
+        let car = {
+            x: canvas.width / 2 - 20,
+            y: canvas.height - 120,
+            width: 40,
+            height: 70,
+            speed: 5,
+            dx: 0
+        };
+
+        // Highway bounds (Forest road in the middle)
+        const roadLeft = 60;
+        const roadRight = canvas.width - 60;
+
+        // Obstacles (Other cars or rocks)
+        let obstacles = [];
+        let obstacleTimer = 0;
+
+        // Jungle Trees decoration on sides
+        let trees = [];
+        for (let i = 0; i < 10; i++) {
+            trees.push({
+                y: i * 70,
+                leftX: Math.random() * 40,
+                rightX: canvas.width - 40 + Math.random() * 30
+            });
+        }
+
+        // Controls
+        document.getElementById('leftBtn').addEventListener('touchstart', () => { car.dx = -4; });
+        document.getElementById('leftBtn').addEventListener('touchend', () => { car.dx = 0; });
+        document.getElementById('leftBtn').addEventListener('mousedown', () => { car.dx = -4; });
+        document.getElementById('leftBtn').addEventListener('mouseup', () => { car.dx = 0; });
+
+        document.getElementById('rightBtn').addEventListener('touchstart', () => { car.dx = 4; });
+        document.getElementById('rightBtn').addEventListener('touchend', () => { car.dx = 0; });
+        document.getElementById('rightBtn').addEventListener('mousedown', () => { car.dx = 4; });
+        document.getElementById('rightBtn').addEventListener('mouseup', () => { car.dx = 0; });
+
+        // Keyboard support for testing
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') car.dx = -4;
+            if (e.key === 'ArrowRight') car.dx = 4;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') car.dx = 0;
+        });
+
+        function spawnObstacle() {
+            let obsX = roadLeft + Math.random() * (roadRight - roadLeft - 40);
+            obstacles.push({
+                x: obsX,
+                y: -100,
+                width: 40,
+                height: 70,
+                speed: 4 + Math.random() * 2
+            });
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // Move car
+            car.x += car.dx;
+
+            // Keep car on road bounds
+            if (car.x < roadLeft) car.x = roadLeft;
+            if (car.x > roadRight - car.width) car.x = roadRight - car.width;
+
+            // Move trees (Background forest scrolling effect)
+            trees.forEach(tree => {
+                tree.y += 3;
+                if (tree.y > canvas.height) tree.y = -50;
+            });
+
+            // Spawn obstacles
+            obstacleTimer++;
+            if (obstacleTimer > 70) {
+                spawnObstacle();
+                obstacleTimer = 0;
+            }
+
+            // Move obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].y += obstacles[i].speed;
+
+                // Collision detection
+                if (
+                    car.x < obstacles[i].x + obstacles[i].width &&
+                    car.x + car.width > obstacles[i].x &&
+                    car.y < obstacles[i].y + obstacles[i].height &&
+                    car.y + car.height > obstacles[i].y
+                ) {
+                    isGameOver = true;
+                }
+
+                // Remove passed obstacles
+                if (obstacles[i].y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    scoreDisplay.innerText = "Score: " + score;
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw Jungle Grass Background
+            ctx.fillStyle = '#2e7d32';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Draw Trees on Sides
+            ctx.fillStyle = '#1b5e20';
+            trees.forEach(tree => {
+                ctx.beginPath();
+                ctx.arc(tree.leftX, tree.y, 25, 0, Math.PI * 2);
+                ctx.arc(tree.rightX, tree.y, 25, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 3. Draw Highway Road
+            ctx.fillStyle = '#424242';
+            ctx.fillRect(roadLeft, 0, roadRight - roadLeft, canvas.height);
+
+            // Road side borders (White lines)
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(roadLeft, 0);
+            ctx.lineTo(roadLeft, canvas.height);
+            ctx.moveTo(roadRight, 0);
+            ctx.lineTo(roadRight, canvas.height);
+            ctx.stroke();
+
+            // Center dashed line
+            ctx.strokeStyle = '#ffeb3b';
+            ctx.setLineDash([20, 20]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 4. Draw Player Car (Red Sports Car)
+            ctx.fillStyle = '#e53935';
+            ctx.fillRect(car.x, car.y, car.width, car.height);
+            // Car Windshield
+            ctx.fillStyle = '#b71c1c';
+            ctx.fillRect(car.x + 5, car.y + 15, car.width - 10, 15);
+
+            // 5. Draw Obstacles (Blue Cars)
+            obstacles.forEach(obs => {
+                ctx.fillStyle = '#1e88e5';
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.fillStyle = '#0d47a1';
+                ctx.fillRect(obs.x + 5, obs.y + 40, obs.width - 10, 15);
+            });
+
+            // Game Over Text
+            if (isGameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.font = '16px Arial';
+                ctx.fillText('Refresh page to play again', canvas.width / 2, canvas.height / 2 + 20);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (!isGameOver) {
+                requestAnimationFrame(loop);
+            }
+        }
+
+        loop();
+    </script>
+</body>
+</html>
